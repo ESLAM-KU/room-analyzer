@@ -2,9 +2,12 @@ from flask import Flask, request, jsonify
 import google.generativeai as genai
 import mimetypes
 import requests
+import json
+import re
 
 app = Flask(__name__)
 
+# إعداد Gemini
 genai.configure(api_key="AIzaSyB4Rf8wINhYnBkeyQO_NKPHhh2WyotEDTs")
 model = genai.GenerativeModel("gemini-2.5-flash")
 
@@ -54,7 +57,16 @@ Don't explain. Return clean JSON only.
             prompt,
             {"mime_type": mime_type, "data": image_bytes}
         ])
-        return jsonify({"result": gemini_response.text.strip()})
+
+        raw_text = gemini_response.text.strip()
+
+        # نحاول نطلع الـ JSON النظيف من النص
+        match = re.search(r"```json\s*(\{.*\})\s*```", raw_text, re.DOTALL)
+        clean_json = match.group(1) if match else raw_text
+
+        parsed = json.loads(clean_json)
+        return jsonify(parsed)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
