@@ -7,8 +7,8 @@ import re
 
 app = Flask(__name__)
 
-# إعداد Gemini
-genai.configure(api_key="AIzaSyB4Rf8wINhYnBkeyQO_NKPHhh2WyotEDTs")
+# اعداد Gemini
+genai.configure(api_key="AIzaSyB4RF8wINhYnBkeyQO_NKPHHh2WyotEDTs")
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 @app.route('/')
@@ -38,37 +38,36 @@ def extract_info():
     prompt = """
 You are a smart assistant helping users analyze a rental room from an image.
 
-Return JSON with the following keys:
-- "room_type": "[Bedroom / Kitchen / Living Room / Bathroom / Balcony / Unknown]"
-- "main_items": "[List of visible items]"
-- "estimated_area_sqm": "[Like: 3m x 4m ≈ 12m²]"
-- "floor_type": "[Tiles, wood, carpet, etc.]"
-- "wall_condition": "[Good / Needs painting / Damaged]"
-- "ventilation": "[Good / Poor / No ventilation]"
-- "natural_light": "[Strong / Moderate / Poor]"
-- "window_view": "[Contains one/two window(s), optional outside view if visible]"
-- "rental_tips": "[Suggestions to improve attractiveness]"
+Return JSON with the following keys, ensuring all values are single strings and not lists:
+- "main_items": "List of visible items, separated by commas"
+- "estimated_area_sqm": "Like: 3m x 4m ≈ 12m²"
+- "ventilation": "Good / Poor / No ventilation"
+- "natural_light": "Strong / Moderate / Poor"
+- "window_view": "Contains one/two window(s), optional outside view if visible"
+- "rental_tips": "Suggestions to improve attractiveness""""
 
-Don't explain. Return clean JSON only.
-"""
+    image_part = {
+        'mime_type': mime_type,
+        'data': image_bytes
+    }
 
     try:
-        gemini_response = model.generate_content([
-            prompt,
-            {"mime_type": mime_type, "data": image_bytes}
-        ])
+        response = model.generate_content([prompt, image_part])
+        response.resolve()
+        
+        # Extract JSON string from response text
+        json_match = re.search(r'```json\n(.*?)```', response.text, re.DOTALL)
+        if json_match:
+            json_string = json_match.group(1)
+            result = json.loads(json_string)
+        else:
+            # If no ```json``` block, try to parse the whole response as JSON
+            result = json.loads(response.text)
 
-        raw_text = gemini_response.text.strip()
-
-        # نحاول نطلع الـ JSON النظيف من النص
-        match = re.search(r"```json\s*(\{.*\})\s*```", raw_text, re.DOTALL)
-        clean_json = match.group(1) if match else raw_text
-
-        parsed = json.loads(clean_json)
-        return jsonify(parsed)
+        return jsonify(result)
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Failed to analyze image: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
