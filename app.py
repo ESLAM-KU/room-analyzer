@@ -7,7 +7,7 @@ import re
 
 app = Flask(__name__)
 
-# اعداد Gemini
+# إعداد Gemini
 genai.configure(api_key="AIzaSyB4RF8wINhYnBkeyQO_NKPHHh2WyotEDTs")
 model = genai.GenerativeModel("gemini-2.5-flash")
 
@@ -44,7 +44,8 @@ Return JSON with the following keys, ensuring all values are single strings and 
 - "ventilation": "Good / Poor / No ventilation"
 - "natural_light": "Strong / Moderate / Poor"
 - "window_view": "Contains one/two window(s), optional outside view if visible"
-- "rental_tips": "Suggestions to improve attractiveness""""
+- "rental_tips": "Suggestions to improve attractiveness"
+"""
 
     image_part = {
         'mime_type': mime_type,
@@ -53,16 +54,22 @@ Return JSON with the following keys, ensuring all values are single strings and 
 
     try:
         response = model.generate_content([prompt, image_part])
-        response.resolve()
-        
-        # Extract JSON string from response text
-        json_match = re.search(r'```json\n(.*?)```', response.text, re.DOTALL)
+
+        # استخراج النص من الرد
+        if hasattr(response, 'text'):
+            response_text = response.text
+        elif hasattr(response, 'parts'):
+            response_text = ''.join(part.text for part in response.parts)
+        else:
+            return jsonify({"error": "No text found in model response"}), 500
+
+        # محاولة استخراج JSON من النص
+        json_match = re.search(r'```json\n(.*?)```', response_text, re.DOTALL)
         if json_match:
             json_string = json_match.group(1)
             result = json.loads(json_string)
         else:
-            # If no ```json``` block, try to parse the whole response as JSON
-            result = json.loads(response.text)
+            result = json.loads(response_text)
 
         return jsonify(result)
 
