@@ -8,8 +8,8 @@ import re
 app = Flask(__name__)
 
 # إعداد Gemini
-genai.configure(api_key="AIzaSyB4RF8wINhYnBkeyQO_NKPHHh2WyotEDTs")
-model = genai.GenerativeModel("gemini-2.5-flash")
+genai.configure(api_key="AIzaSyB4Rf8wINhYnBkeyQO_NKPHhh2WyotEDTs")
+model = genai.GenerativeModel("gemini-1.5-pro")  # استخدم موديل مدعوم
 
 @app.route('/')
 def home():
@@ -38,43 +38,54 @@ def extract_info():
     prompt = """
 You are a smart assistant helping users analyze a rental room from an image.
 
-Return JSON with the following keys, ensuring all values are single strings and not lists:
+Return JSON with only these keys (nothing more), and make sure each value is a single plain string:
 - "main_items": "List of visible items, separated by commas"
 - "estimated_area_sqm": "Like: 3m x 4m ≈ 12m²"
 - "ventilation": "Good / Poor / No ventilation"
 - "natural_light": "Strong / Moderate / Poor"
 - "window_view": "Contains one/two window(s), optional outside view if visible"
 - "rental_tips": "Suggestions to improve attractiveness"
+
+Do not explain. Respond with raw JSON only.
 """
 
-    image_part = {
-        'mime_type': mime_type,
-        'data': image_bytes
-    }
-
     try:
-        response = model.generate_content([prompt, image_part])
+        gemini_response = model.generate_content([
+            prompt,
+            {"mime_type": mime_type, "data": image_bytes}
+        ])
 
-        # استخراج النص من الرد
-        if hasattr(response, 'text'):
-            response_text = response.text
-        elif hasattr(response, 'parts'):
-            response_text = ''.join(part.text for part in response.parts)
-        else:
-            return jsonify({"error": "No text found in model response"}), 500
+        raw_text = gemini_response.text.strip()
 
-        # محاولة استخراج JSON من النص
-        json_match = re.search(r'```json\n(.*?)```', response_text, re.DOTALL)
-        if json_match:
-            json_string = json_match.group(1)
-            result = json.loads(json_string)
-        else:
-            result = json.loads(response_text)
+        # نحاول نطلع الـ JSON النظيف من النص
+        match = re.search(r"```json\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+        clean_json = match.group(1) if match else raw_text
+
+        parsed = json.loads(clean_json)
+
+        # نحتفظ فقط بالمفاتيح المطلوبة، ونتأكد إن القيم عبارة عن Strings
+        allowed_keys = [
+            "main_items",
+            "estimated_area_sqm",
+            "ventilation",
+            "natural_light",
+            "window_view",
+            "rental_tips"
+        ]
+
+        result = {
+            key: (
+                ", ".join(value) if isinstance(value, list)
+                else str(value)
+            )
+            for key, value in parsed.items()
+            if key in allowed_keys
+        }
 
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"error": f"Failed to analyze image: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000)
