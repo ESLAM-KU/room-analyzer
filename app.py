@@ -8,7 +8,7 @@ import re
 app = Flask(__name__)
 
 # إعداد Gemini
-genai.configure(api_key="AIzaSyB4Rf8wINhYnBkeyQO_NKPHhh2WyotEDTs")
+genai.configure(api_key="AIzaSyA2tK4v03-CGsMOmc0xA4xsiLfT77nDPxY")
 model = genai.GenerativeModel("gemini-1.5-pro")  # استخدم موديل مدعوم
 
 @app.route('/')
